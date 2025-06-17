@@ -26,7 +26,7 @@ var notesCollection *mongo.Collection
 var ctx = context.Background()
 
 func main() {
-	// Koneksi MongoDB
+	// Koneksi ke MongoDB
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal(err)
@@ -34,19 +34,37 @@ func main() {
 	notesCollection = client.Database("todolist").Collection("notes")
 
 	// Routing
-	http.HandleFunc("/notes", notesHandler)       
-	http.HandleFunc("/notes/", noteDeleteHandler) 
+	http.HandleFunc("/notes", corsMiddleware(notesHandler))
+	http.HandleFunc("/notes/", corsMiddleware(noteDeleteHandler))
 
 	fmt.Println("Server berjalan di http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Set header CORS
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		// Handle preflight
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 func notesHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
 		getNotes(w, r)
-	} else if r.Method == http.MethodPost {
+	case http.MethodPost:
 		createNote(w, r)
-	} else {
+	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
